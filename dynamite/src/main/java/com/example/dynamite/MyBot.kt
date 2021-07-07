@@ -4,28 +4,61 @@ import com.softwire.dynamite.bot.Bot
 import com.softwire.dynamite.game.Gamestate
 import com.softwire.dynamite.game.Move
 import com.softwire.dynamite.game.Round
+import java.lang.Math.max
+import kotlin.random.Random
 
 class MyBot : Bot {
     var myDynamiteSticks = 100
     var theirDynamiteSticks = 100
-    var roundNum = 1
+    var roundNum = 0
     var myCurrentScore = 0
     var theirCurrentScore = 0
     var valueOfRound = 1
+    var waterWeighting = 0.0
+
 
     override fun makeMove(gamestate: Gamestate): Move {
-        // Are you debugging?
-        // Put a breakpoint in this method to see when we make a move
+        roundNum ++
+        val move:Move
         if (roundNum > 1) {
             val lastRound = gamestate.rounds.last()
             val lastRoundOutcome = getOutcome(lastRound.p1,lastRound.p2)
             updateScores(lastRoundOutcome)
             updateDynamite(lastRound)
+            move = pickRandomMove()
+        } else {
+            move = Move.W
         }
         printFinalScores()
 
-        roundNum ++
-        return Move.S
+        return move
+    }
+
+    fun pickRandomMove(): Move {
+        val sample = Random.nextDouble()
+        val maxCurrentScore = max(myCurrentScore, theirCurrentScore)
+        val expectedTurnsLeft = (1000-maxCurrentScore)/(maxCurrentScore.toDouble()/(roundNum))
+        val dynamiteProbabilty = myDynamiteSticks.toDouble()/expectedTurnsLeft
+        val newDistribution = mutableMapOf<Move, Double>()
+        val rpsWeighting = (1-waterWeighting)/3
+        val distribution = mapOf(
+            Move.D to dynamiteProbabilty,
+            Move.W to waterWeighting*(1-dynamiteProbabilty),
+            Move.P to rpsWeighting*(1-dynamiteProbabilty),
+            Move.S to rpsWeighting*(1-dynamiteProbabilty),
+            Move.R to rpsWeighting*(1-dynamiteProbabilty)
+        )
+        distribution.forEach{ (k, v) ->
+            newDistribution[k] = v
+        }
+        var cumulativeProbability = 0.0;
+        newDistribution.forEach{(k,v)->
+            cumulativeProbability += v
+            if(sample <= cumulativeProbability){
+                return k
+            }
+        }
+        return Move.R
     }
 
     fun printFinalScores() {
@@ -94,8 +127,7 @@ class MyBot : Bot {
     }
 
     init {
-        // Are you debugging?
-        // Put a breakpoint on the line below to see when we start a new match
+
         println("Started new match")
     }
 }
