@@ -14,39 +14,75 @@ class MyBot : Bot {
     var myCurrentScore = 0
     var theirCurrentScore = 0
     var valueOfRound = 1
-    var waterWeighting = 0.0
+    var waterWeighting = 0.1
 
 
     override fun makeMove(gamestate: Gamestate): Move {
         roundNum ++
-        val move:Move
-        if (roundNum > 1) {
+        return if (roundNum > 1) {
             val lastRound = gamestate.rounds.last()
             val lastRoundOutcome = getOutcome(lastRound.p1,lastRound.p2)
             updateScores(lastRoundOutcome)
             updateDynamite(lastRound)
-            move = pickRandomMove()
+            if(roundNum > 5 && detectSpammedMoves(gamestate, 5)){
+                whatBeatsThis(lastRound.p2)
+            } else if (lastRoundOutcome == Outcome.DRAW) {
+                val (sameAfterDraw, drawMove) = detectSameAfterDraw(gamestate)
+                if(sameAfterDraw){
+                    whatBeatsThis(drawMove)
+                } else {
+                    Move.D
+                }
+            } else {
+                pickRandomMove()
+            }
         } else {
-            move = Move.W
+            Move.W
         }
-        printFinalScores()
+    }
 
-        return move
+    fun detectBeatPreviousMoveStrat(){
+
+    }
+
+    fun detectSameAfterDraw(gamestate: Gamestate): Pair<Boolean, Move> {
+        var drawStates = mutableListOf<Round>()
+        var range = 0 until (roundNum -2)
+        for (index in range) {
+            if(gamestate.rounds[index].p1 == gamestate.rounds[index].p2){
+                drawStates.add(gamestate.rounds[index+1])
+            }
+        }
+        if (drawStates.isNotEmpty()){
+            return Pair(drawStates.all{it.p2 == drawStates.last().p2}, drawStates.last().p2)
+        }
+        return Pair(false, Move.D)
+    }
+
+    fun detectSpammedMoves(gamestate: Gamestate, n: Int): Boolean {
+        val lastFiveRounds = gamestate.rounds.takeLast(n)
+        return lastFiveRounds.all{it.p2 == gamestate.rounds.last().p2}
     }
 
     fun pickRandomMove(): Move {
+        // Change water weighting depending on how much dynamite opponent has left
         val sample = Random.nextDouble()
         val maxCurrentScore = max(myCurrentScore, theirCurrentScore)
         val expectedTurnsLeft = (1000-maxCurrentScore)/(maxCurrentScore.toDouble()/(roundNum))
         val dynamiteProbabilty = myDynamiteSticks.toDouble()/expectedTurnsLeft
+        val waterProbabilty = if(theirDynamiteSticks == 100){
+            0.0
+        } else {
+            theirDynamiteSticks.toDouble()/expectedTurnsLeft
+        }
         val newDistribution = mutableMapOf<Move, Double>()
-        val rpsWeighting = (1-waterWeighting)/3
+        val rpsWeighting = (1-dynamiteProbabilty-waterProbabilty)/3
         val distribution = mapOf(
+            Move.W to waterProbabilty,
             Move.D to dynamiteProbabilty,
-            Move.W to waterWeighting*(1-dynamiteProbabilty),
-            Move.P to rpsWeighting*(1-dynamiteProbabilty),
-            Move.S to rpsWeighting*(1-dynamiteProbabilty),
-            Move.R to rpsWeighting*(1-dynamiteProbabilty)
+            Move.P to rpsWeighting,
+            Move.S to rpsWeighting,
+            Move.R to rpsWeighting
         )
         distribution.forEach{ (k, v) ->
             newDistribution[k] = v
@@ -87,6 +123,16 @@ class MyBot : Bot {
                 valueOfRound = 1
             }
             Outcome.DRAW -> valueOfRound++
+        }
+    }
+
+    fun whatBeatsThis(move: Move): Move {
+        return when(move) {
+            Move.D -> Move.W
+            Move.W -> Move.R
+            Move.R -> Move.P
+            Move.S -> Move.R
+            Move.P -> Move.S
         }
     }
 
