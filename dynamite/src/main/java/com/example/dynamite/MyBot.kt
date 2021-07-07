@@ -3,10 +3,12 @@ package com.example.dynamite
 import com.softwire.dynamite.bot.Bot
 import com.softwire.dynamite.game.Gamestate
 import com.softwire.dynamite.game.Move
+import com.softwire.dynamite.game.Round
 
 class MyBot : Bot {
-    var dynamiteSticks = 100
-    var roundNumber = 1
+    var myDynamiteSticks = 100
+    var theirDynamiteSticks = 100
+    var roundNum = 1
     var myCurrentScore = 0
     var theirCurrentScore = 0
     var valueOfRound = 1
@@ -14,22 +16,45 @@ class MyBot : Bot {
     override fun makeMove(gamestate: Gamestate): Move {
         // Are you debugging?
         // Put a breakpoint in this method to see when we make a move
-        if (roundNumber > 1) {
+        if (roundNum > 1) {
             val lastRound = gamestate.rounds.last()
             val lastRoundOutcome = getOutcome(lastRound.p1,lastRound.p2)
-            when(lastRoundOutcome) {
-                Outcome.WIN -> {myCurrentScore += valueOfRound
-                                valueOfRound = 1}
-                Outcome.LOSS -> {theirCurrentScore += valueOfRound
-                                valueOfRound = 1}
-                Outcome.DRAW -> valueOfRound++
-            }
+            updateScores(lastRoundOutcome)
+            updateDynamite(lastRound)
         }
-        if(myCurrentScore == 1000-valueOfRound || theirCurrentScore == 1000-valueOfRound || roundNumber == 2500){
+        printFinalScores()
+
+        roundNum ++
+        return Move.S
+    }
+
+    fun printFinalScores() {
+        if(myCurrentScore == 1000-valueOfRound || theirCurrentScore == 1000-valueOfRound || roundNum == 2500){
             print("My final score: $myCurrentScore, Their final score: $theirCurrentScore \n")
         }
-        roundNumber ++
-        return Move.S
+    }
+
+    fun updateDynamite(lastRound: Round){
+        if (lastRound.p2 == Move.D) {
+            theirDynamiteSticks--
+        }
+        if (lastRound.p1 == Move.D) {
+            myDynamiteSticks--
+        }
+    }
+
+    fun updateScores(lastRoundOutcome: Outcome){
+        when(lastRoundOutcome) {
+            Outcome.WIN -> {
+                myCurrentScore += valueOfRound
+                valueOfRound = 1
+            }
+            Outcome.LOSS -> {
+                theirCurrentScore += valueOfRound
+                valueOfRound = 1
+            }
+            Outcome.DRAW -> valueOfRound++
+        }
     }
 
     fun getOutcome(ourMove: Move, theirMove: Move): Outcome{
