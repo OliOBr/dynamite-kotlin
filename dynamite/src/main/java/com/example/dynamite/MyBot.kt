@@ -70,6 +70,12 @@ class MyBot : Bot {
                 stillDrawing = false
             }
         }
+        if(numOfDraws >= 5){
+            numOfDraws -= 2
+        } else if (numOfDraws >= 3){
+            numOfDraws -= 1
+        }
+
         val currentSnippet = gamestate.rounds.takeLast(numOfDraws)
         var drawStates = arrayOf<Pair<Int,Round>>()
         var range = 0 until (roundNum -2)
@@ -87,14 +93,14 @@ class MyBot : Bot {
                 // error is probably in this block, but also another error that occurs when running against itself so try that locally
                 val snippet = drawStates.slice(index..(index+numOfDraws-1))
                 var matchesCurrent = true
-                snippet.forEachIndexed{ i, drawState -> if(drawState.second.p2 != currentSnippet[i].p2) {matchesCurrent = false}  }
+                snippet.forEachIndexed{ i, drawState -> if(!(matchType(drawState.second.p2, currentSnippet[i].p2))) {matchesCurrent = false}  }
                 if(matchesCurrent) {
                     nextMoves.add(gamestate.rounds[drawStates[index].first + numOfDraws].p2)
                 }
             }
         }
-
-        if (nextMoves.isNotEmpty()){
+        //TODO: Figure out when playing water is losing you points and stop doing it
+        if (nextMoves.size > 2){
             //print(nextMoves)
             if(theirDynamiteSticks == 0) {
                 nextMoves.removeIf { it == Move.D }
@@ -105,8 +111,37 @@ class MyBot : Bot {
                 }
             }
             return Pair(true,nextMoves.shuffled().first())
+        } else {
+            if(detectSpammedMoves(gamestate, 2) && gamestate.rounds.last().p2 == Move.D) {
+                return Pair(true, Move.D)
+            }
         }
         return Pair(false, Move.R)
+    }
+
+    fun matchType(move1: Move, move2: Move): Boolean {
+        return when(move1){
+            Move.W -> move2==Move.W
+            Move.D -> move2==Move.D
+            Move.S -> when(move2){
+                Move.S -> true
+                Move.P -> true
+                Move.R -> true
+                else -> false
+            }
+            Move.R -> when(move2){
+                Move.S -> true
+                Move.P -> true
+                Move.R -> true
+                else -> false
+            }
+            Move.P -> when(move2){
+                Move.S -> true
+                Move.P -> true
+                Move.R -> true
+                else -> false
+            }
+        }
     }
 
     fun detectSameAfterDraw(gamestate: Gamestate): Pair<Boolean, Move> {
