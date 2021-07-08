@@ -70,17 +70,17 @@ class MyBot : Bot {
                 stillDrawing = false
             }
         }
-        if(numOfDraws >= 5){
+        /*if(numOfDraws >= 5){
             numOfDraws -= 2
         } else if (numOfDraws >= 3){
             numOfDraws -= 1
-        }
+        } */
 
         val currentSnippet = gamestate.rounds.takeLast(numOfDraws)
         var drawStates = arrayOf<Pair<Int,Round>>()
         var range = 0 until (roundNum -2)
         for (index in range) {
-            if(gamestate.rounds[index].p1 == gamestate.rounds[index].p2){
+            if(isDraw(gamestate.rounds[index])){
                 drawStates += Pair(index,gamestate.rounds[index])
             }
         }
@@ -89,7 +89,7 @@ class MyBot : Bot {
         for (index in range) {
             //print(drawStates[index + numOfDraws - 1].first - drawStates[index].first)
             //print(" ")
-            if(drawStates[index + numOfDraws - 1].first - drawStates[index].first ==  numOfDraws - 1){
+            if(drawStates[index + numOfDraws - 1].first - drawStates[index].first ==  numOfDraws - 1 && (drawStates[index].first ==0 || !isDraw(gamestate.rounds[drawStates[index].first - 1]))){
                 // error is probably in this block, but also another error that occurs when running against itself so try that locally
                 val snippet = drawStates.slice(index..(index+numOfDraws-1))
                 var matchesCurrent = true
@@ -110,13 +110,17 @@ class MyBot : Bot {
                     Pair(false, Move.R)
                 }
             }
-            return Pair(true,nextMoves.shuffled().first())
+            return Pair(true,nextMoves.takeLast(2).shuffled().first())
         } else {
             if(detectSpammedMoves(gamestate, 2) && gamestate.rounds.last().p2 == Move.D) {
                 return Pair(true, Move.D)
             }
         }
         return Pair(false, Move.R)
+    }
+
+    fun isDraw(gameRound: Round): Boolean{
+        return gameRound.p1 == gameRound.p2
     }
 
     fun matchType(move1: Move, move2: Move): Boolean {
