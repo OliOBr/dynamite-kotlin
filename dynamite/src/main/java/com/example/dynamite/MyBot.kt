@@ -55,9 +55,7 @@ class MyBot : Bot {
             }
         }
     }
-    //TODO: Sometimes finish games without running out of dynamite - need to beat ReactiveBot on page 86
     //TODO: Consider changing the minimum value for highstakes strat
-    //TODO: Fix getting stuck in DDWDDWDDW loop as puts it hugely up to random chance
 
     fun detectBeatPreviousMoveStrat(){
 
@@ -98,7 +96,11 @@ class MyBot : Bot {
             return Pair(true,nextMoves.takeLast(2).shuffled().first())
         } else {
             if(detectSpammedMoves(gamestate, 2) && gamestate.rounds.last().p2 == Move.D) {
-                return Pair(true, Move.D)
+                if(currentSnippet.size < 7) {
+                    return Pair(true, Move.D)
+                }else {
+                    return Pair(true, Move.W)
+                }
             }
         }
         return Pair(false, Move.R)
