@@ -5,7 +5,9 @@ import com.softwire.dynamite.game.Gamestate
 import com.softwire.dynamite.game.Move
 import com.softwire.dynamite.game.Round
 import java.lang.Math.max
-import kotlin.random.Random
+import java.lang.Math.min
+import java.util.concurrent.ThreadLocalRandom
+
 
 class MyBot : Bot {
     var myDynamiteSticks = 100
@@ -14,7 +16,6 @@ class MyBot : Bot {
     var myCurrentScore = 0
     var theirCurrentScore = 0
     var valueOfRound = 1
-    var waterWeighting = 0.1
 
 
     override fun makeMove(gamestate: Gamestate): Move {
@@ -27,12 +28,7 @@ class MyBot : Bot {
             if(roundNum > 5 && detectSpammedMoves(gamestate, 5)){
                 whatBeatsThis(lastRound.p2)
             } else if (lastRoundOutcome == Outcome.DRAW) {
-                val (sameAfterDraw, drawMove) = detectSameAfterDraw(gamestate)
-                if(sameAfterDraw){
-                    whatBeatsThis(drawMove)
-                } else {
-                    Move.D
-                }
+                onDraw(gamestate)
             } else {
                 pickRandomMove()
             }
@@ -41,8 +37,76 @@ class MyBot : Bot {
         }
     }
 
+    fun onDraw(gamestate: Gamestate): Move {
+        val (drawSequenceSeenBefore, nextMove) = nextInSequenceOfDraws(gamestate)
+        return if(drawSequenceSeenBefore){
+            //print(nextMove)
+            whatBeatsThis(nextMove)
+        } else {
+            if(myDynamiteSticks != 0 && valueOfRound >= 3) {
+                Move.D
+            } else {
+                pickRandomMove()
+            }
+        }
+    }
+
     fun detectBeatPreviousMoveStrat(){
 
+    }
+
+    fun nextInSequenceOfDraws(gamestate: Gamestate): Pair<Boolean, Move>{
+        var stillDrawing = true
+        var numOfDraws = 0
+        while(stillDrawing) {
+            if(numOfDraws + 1 <= gamestate.rounds.size) {
+                val possibleDraw = gamestate.rounds.takeLast(numOfDraws + 1)[0]
+                if (possibleDraw.p1 == possibleDraw.p2) {
+                    numOfDraws++
+                } else {
+                    stillDrawing = false
+                }
+            } else {
+                stillDrawing = false
+            }
+        }
+        val currentSnippet = gamestate.rounds.takeLast(numOfDraws)
+        var drawStates = arrayOf<Pair<Int,Round>>()
+        var range = 0 until (roundNum -2)
+        for (index in range) {
+            if(gamestate.rounds[index].p1 == gamestate.rounds[index].p2){
+                drawStates += Pair(index,gamestate.rounds[index])
+            }
+        }
+        var nextMoves = mutableListOf<Move>()
+        range = 0 until (drawStates.size - numOfDraws)
+        for (index in range) {
+            //print(drawStates[index + numOfDraws - 1].first - drawStates[index].first)
+            //print(" ")
+            if(drawStates[index + numOfDraws - 1].first - drawStates[index].first ==  numOfDraws - 1){
+                // error is probably in this block, but also another error that occurs when running against itself so try that locally
+                val snippet = drawStates.slice(index..(index+numOfDraws-1))
+                var matchesCurrent = true
+                snippet.forEachIndexed{ i, drawState -> if(drawState.second.p2 != currentSnippet[i].p2) {matchesCurrent = false}  }
+                if(matchesCurrent) {
+                    nextMoves.add(gamestate.rounds[drawStates[index].first + numOfDraws].p2)
+                }
+            }
+        }
+
+        if (nextMoves.isNotEmpty()){
+            //print(nextMoves)
+            if(theirDynamiteSticks == 0) {
+                nextMoves.removeIf { it == Move.D }
+                return if(nextMoves.isNotEmpty()){
+                    Pair(true, nextMoves.shuffled().first())
+                } else {
+                    Pair(false, Move.R)
+                }
+            }
+            return Pair(true,nextMoves.shuffled().first())
+        }
+        return Pair(false, Move.R)
     }
 
     fun detectSameAfterDraw(gamestate: Gamestate): Pair<Boolean, Move> {
@@ -66,29 +130,29 @@ class MyBot : Bot {
 
     fun pickRandomMove(): Move {
         // Change water weighting depending on how much dynamite opponent has left
-        val sample = Random.nextDouble()
+        val sample = ThreadLocalRandom.current().nextDouble()
         val maxCurrentScore = max(myCurrentScore, theirCurrentScore)
         val expectedTurnsLeft = (1000-maxCurrentScore)/(maxCurrentScore.toDouble()/(roundNum))
-        val dynamiteProbabilty = myDynamiteSticks.toDouble()/expectedTurnsLeft
+        val dynamiteProbabilty = if (myDynamiteSticks != 0) {
+            myDynamiteSticks.toDouble()/expectedTurnsLeft
+        } else {
+            0.0
+        }
         val waterProbabilty = if(theirDynamiteSticks == 100){
             0.0
         } else {
-            theirDynamiteSticks.toDouble()/expectedTurnsLeft
+            min(theirDynamiteSticks.toDouble()/expectedTurnsLeft,0.0)
         }
-        val newDistribution = mutableMapOf<Move, Double>()
         val rpsWeighting = (1-dynamiteProbabilty-waterProbabilty)/3
         val distribution = mapOf(
             Move.W to waterProbabilty,
-            Move.D to dynamiteProbabilty,
             Move.P to rpsWeighting,
             Move.S to rpsWeighting,
-            Move.R to rpsWeighting
+            Move.R to rpsWeighting,
+            Move.D to dynamiteProbabilty
         )
-        distribution.forEach{ (k, v) ->
-            newDistribution[k] = v
-        }
         var cumulativeProbability = 0.0;
-        newDistribution.forEach{(k,v)->
+        distribution.forEach{(k,v)->
             cumulativeProbability += v
             if(sample <= cumulativeProbability){
                 return k
