@@ -22,7 +22,7 @@ class MyBot : Bot {
         roundNum ++
         return if (roundNum > 1) {
             val lastRound = gamestate.rounds.last()
-            val lastRoundOutcome = getOutcome(lastRound.p1,lastRound.p2)
+            val lastRoundOutcome = getOutcome(lastRound)
             updateScores(lastRoundOutcome)
             updateDynamite(lastRound)
             if(roundNum > 5 && detectSpammedMoves(gamestate, 5)){
@@ -41,7 +41,11 @@ class MyBot : Bot {
         val (drawSequenceSeenBefore, nextMove) = nextInSequenceOfDraws(gamestate)
         return if(drawSequenceSeenBefore){
             //print(nextMove)
-            whatBeatsThis(nextMove)
+            if(valueOfRound >= 3 && myDynamiteSticks != 0) {
+                whatBeatsThisHighstakes(nextMove)
+            } else{
+                whatBeatsThis(nextMove)
+            }
         } else {
             if(myDynamiteSticks != 0 && valueOfRound >= 3) {
                 Move.D
@@ -55,54 +59,31 @@ class MyBot : Bot {
 
     }
 
-    fun nextInSequenceOfDraws(gamestate: Gamestate): Pair<Boolean, Move>{
-        var stillDrawing = true
-        var numOfDraws = 0
-        while(stillDrawing) {
-            if(numOfDraws + 1 <= gamestate.rounds.size) {
-                val possibleDraw = gamestate.rounds.takeLast(numOfDraws + 1)[0]
-                if (possibleDraw.p1 == possibleDraw.p2) {
-                    numOfDraws++
-                } else {
-                    stillDrawing = false
+    fun shouldPlayWater(gamestate: Gamestate, riskFactor: Double): Boolean {
+        var wins = 0
+        var draws = 0
+        var losses = 0
+        for (gameRound in gamestate.rounds) {
+            if(gameRound.p1 == Move.W){
+                when(getOutcome(gameRound)){
+                    Outcome.WIN -> wins++
+                    Outcome.DRAW -> draws++
+                    Outcome.LOSS -> losses++
                 }
-            } else {
-                stillDrawing = false
             }
         }
-        /*if(numOfDraws >= 5){
-            numOfDraws -= 2
-        } else if (numOfDraws >= 3){
-            numOfDraws -= 1
-        } */
+        return if (wins+draws ==0) {
+            true
+        } else{
+            ((wins+draws).toDouble()/(wins+draws+losses)>= riskFactor)
+        }
+    }
 
-        val currentSnippet = gamestate.rounds.takeLast(numOfDraws)
-        var drawStates = arrayOf<Pair<Int,Round>>()
-        var range = 0 until (roundNum -2)
-        for (index in range) {
-            if(isDraw(gamestate.rounds[index])){
-                drawStates += Pair(index,gamestate.rounds[index])
-            }
-        }
-        var nextMoves = mutableListOf<Move>()
-        range = 0 until (drawStates.size - numOfDraws)
-        for (index in range) {
-            //print(drawStates[index + numOfDraws - 1].first - drawStates[index].first)
-            //print(" ")
-            if(drawStates[index + numOfDraws - 1].first - drawStates[index].first ==  numOfDraws - 1 && (drawStates[index].first ==0 || !isDraw(gamestate.rounds[drawStates[index].first - 1]))){
-                // error is probably in this block, but also another error that occurs when running against itself so try that locally
-                val snippet = drawStates.slice(index..(index+numOfDraws-1))
-                var matchesCurrent = true
-                snippet.forEachIndexed{ i, drawState -> if(!(matchType(drawState.second.p2, currentSnippet[i].p2))) {matchesCurrent = false}  }
-                if(matchesCurrent) {
-                    nextMoves.add(gamestate.rounds[drawStates[index].first + numOfDraws].p2)
-                }
-            }
-        }
-        //TODO: Figure out when playing water is losing you points and stop doing it
+    fun nextInSequenceOfDraws(gamestate: Gamestate): Pair<Boolean, Move>{
+        val currentSnippet = getCurrentSequenceOfDraws(gamestate)
+        val nextMoves = getMoveAfterThisSequenceOfDraws(gamestate, currentSnippet)
         if (nextMoves.size > 2){
-            //print(nextMoves)
-            if(theirDynamiteSticks == 0) {
+            if(theirDynamiteSticks == 0 || !shouldPlayWater(gamestate,0.5)) {
                 nextMoves.removeIf { it == Move.D }
                 return if(nextMoves.isNotEmpty()){
                     Pair(true, nextMoves.shuffled().first())
@@ -117,6 +98,53 @@ class MyBot : Bot {
             }
         }
         return Pair(false, Move.R)
+    }
+
+    fun getMoveAfterThisSequenceOfDraws(gamestate: Gamestate, currentSnippet: List<Round>): MutableList<Move> {
+        val drawStates = getAllDraws(gamestate)
+        val numOfDraws = currentSnippet.size
+        var nextMoves = mutableListOf<Move>()
+        var range = 0 until (drawStates.size - numOfDraws)
+        for (index in range) {
+            if(drawStates[index + numOfDraws - 1].first - drawStates[index].first ==  numOfDraws - 1 && (drawStates[index].first ==0 || !isDraw(gamestate.rounds[drawStates[index].first - 1]))){
+                val snippet = drawStates.slice(index..(index+numOfDraws-1))
+                var matchesCurrent = true
+                snippet.forEachIndexed{ i, drawState -> if(!(matchType(drawState.second.p2, currentSnippet[i].p2))) {matchesCurrent = false}  }
+                if(matchesCurrent) {
+                    nextMoves.add(gamestate.rounds[drawStates[index].first + numOfDraws].p2)
+                }
+            }
+        }
+        return nextMoves
+    }
+
+    fun getAllDraws(gamestate: Gamestate): Array<Pair<Int,Round>>{
+        var drawStates = arrayOf<Pair<Int,Round>>()
+        var range = 0 until (roundNum -2)
+        for (index in range) {
+            if(isDraw(gamestate.rounds[index])){
+                drawStates += Pair(index,gamestate.rounds[index])
+            }
+        }
+        return  drawStates
+    }
+
+    fun getCurrentSequenceOfDraws(gamestate: Gamestate): List<Round>{
+        var stillDrawing = true
+        var numOfDraws = 0
+        while(stillDrawing) {
+            if(numOfDraws + 1 <= gamestate.rounds.size) {
+                val possibleDraw = gamestate.rounds.takeLast(numOfDraws + 1)[0]
+                if (possibleDraw.p1 == possibleDraw.p2) {
+                    numOfDraws++
+                } else {
+                    stillDrawing = false
+                }
+            } else {
+                stillDrawing = false
+            }
+        }
+        return gamestate.rounds.takeLast(numOfDraws)
     }
 
     fun isDraw(gameRound: Round): Boolean{
@@ -146,20 +174,6 @@ class MyBot : Bot {
                 else -> false
             }
         }
-    }
-
-    fun detectSameAfterDraw(gamestate: Gamestate): Pair<Boolean, Move> {
-        var drawStates = mutableListOf<Round>()
-        var range = 0 until (roundNum -2)
-        for (index in range) {
-            if(gamestate.rounds[index].p1 == gamestate.rounds[index].p2){
-                drawStates.add(gamestate.rounds[index+1])
-            }
-        }
-        if (drawStates.isNotEmpty()){
-            return Pair(drawStates.all{it.p2 == drawStates.last().p2}, drawStates.last().p2)
-        }
-        return Pair(false, Move.D)
     }
 
     fun detectSpammedMoves(gamestate: Gamestate, n: Int): Boolean {
@@ -239,7 +253,19 @@ class MyBot : Bot {
         }
     }
 
-    fun getOutcome(ourMove: Move, theirMove: Move): Outcome{
+    fun whatBeatsThisHighstakes(move: Move): Move {
+        return when(move) {
+            Move.D -> Move.W
+            Move.W -> Move.R
+            Move.R -> Move.D
+            Move.S -> Move.D
+            Move.P -> Move.D
+        }
+    }
+
+    fun getOutcome(gameRound: Round): Outcome{
+        val ourMove = gameRound.p1
+        val theirMove = gameRound.p2
         return when(ourMove){
             Move.D -> when(theirMove){
                 Move.W -> Outcome.LOSS
