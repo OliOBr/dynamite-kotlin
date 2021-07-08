@@ -55,6 +55,9 @@ class MyBot : Bot {
             }
         }
     }
+    //TODO: Sometimes finish games without running out of dynamite - need to beat ReactiveBot on page 86
+    //TODO: Consider changing the minimum value for highstakes strat
+    //TODO: Fix getting stuck in DDWDDWDDW loop as puts it hugely up to random chance
 
     fun detectBeatPreviousMoveStrat(){
 
@@ -187,8 +190,10 @@ class MyBot : Bot {
         val sample = ThreadLocalRandom.current().nextDouble()
         val maxCurrentScore = max(myCurrentScore, theirCurrentScore)
         val expectedTurnsLeft = (1000-maxCurrentScore)/(maxCurrentScore.toDouble()/(roundNum))
-        val dynamiteProbabilty = if (myDynamiteSticks != 0) {
-            myDynamiteSticks.toDouble()/expectedTurnsLeft*0 // Don't drop dynamite randomly
+
+        val currentRateOfDynamiteUse = max((100-myDynamiteSticks).toDouble()/roundNum,0.1)
+        val dynamiteProbabilty = if (myDynamiteSticks != 0 && (myDynamiteSticks > expectedTurnsLeft*currentRateOfDynamiteUse)){
+                myDynamiteSticks.toDouble()/expectedTurnsLeft // Only drop dynamite randomly to prevent finishing the game with excess
         } else {
             0.0
         }
