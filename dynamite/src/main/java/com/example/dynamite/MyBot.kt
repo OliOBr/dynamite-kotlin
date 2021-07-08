@@ -7,6 +7,7 @@ import com.softwire.dynamite.game.Round
 import java.lang.Math.max
 import java.lang.Math.min
 import java.util.concurrent.ThreadLocalRandom
+import kotlin.math.floor
 
 
 class MyBot : Bot {
@@ -75,7 +76,7 @@ class MyBot : Bot {
         return if (wins+draws ==0) {
             true
         } else{
-            ((wins+draws).toDouble()/(wins+draws+losses)>= riskFactor)
+            riskFactor*(wins+draws).toDouble()/(wins+draws+losses) >= ThreadLocalRandom.current().nextDouble()
         }
     }
 
@@ -83,7 +84,7 @@ class MyBot : Bot {
         val currentSnippet = getCurrentSequenceOfDraws(gamestate)
         val nextMoves = getMoveAfterThisSequenceOfDraws(gamestate, currentSnippet)
         if (nextMoves.size > 2){
-            if(theirDynamiteSticks == 0 || !shouldPlayWater(gamestate,0.5)) {
+            if(theirDynamiteSticks == 0 || !shouldPlayWater(gamestate,1.0)) {
                 nextMoves.removeIf { it == Move.D }
                 return if(nextMoves.isNotEmpty()){
                     Pair(true, nextMoves.shuffled().first())
@@ -187,14 +188,14 @@ class MyBot : Bot {
         val maxCurrentScore = max(myCurrentScore, theirCurrentScore)
         val expectedTurnsLeft = (1000-maxCurrentScore)/(maxCurrentScore.toDouble()/(roundNum))
         val dynamiteProbabilty = if (myDynamiteSticks != 0) {
-            myDynamiteSticks.toDouble()/expectedTurnsLeft
+            myDynamiteSticks.toDouble()/expectedTurnsLeft*0 // Don't drop dynamite randomly
         } else {
             0.0
         }
         val waterProbabilty = if(theirDynamiteSticks == 100){
             0.0
         } else {
-            min(theirDynamiteSticks.toDouble()/expectedTurnsLeft,0.0)
+            min(theirDynamiteSticks.toDouble()/expectedTurnsLeft,0.0) // effectively 0
         }
         val rpsWeighting = (1-dynamiteProbabilty-waterProbabilty)/3
         val distribution = mapOf(
@@ -211,7 +212,7 @@ class MyBot : Bot {
                 return k
             }
         }
-        return Move.R
+        return Move.S
     }
 
     fun printFinalScores() {
@@ -246,17 +247,22 @@ class MyBot : Bot {
     fun whatBeatsThis(move: Move): Move {
         return when(move) {
             Move.D -> Move.W
-            Move.W -> Move.R
+            Move.W -> randomRPS()
             Move.R -> Move.P
             Move.S -> Move.R
             Move.P -> Move.S
         }
     }
+    fun randomRPS() : Move {
+        val randomNumberBetween0and3 = floor(ThreadLocalRandom.current().nextDouble() * 3.0).toInt()
+        val listOfMoves = listOf<Move>(Move.P,Move.R,Move.S)
+        return listOfMoves[randomNumberBetween0and3]
+    }
 
     fun whatBeatsThisHighstakes(move: Move): Move {
         return when(move) {
             Move.D -> Move.W
-            Move.W -> Move.R
+            Move.W -> randomRPS()
             Move.R -> Move.D
             Move.S -> Move.D
             Move.P -> Move.D
