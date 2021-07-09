@@ -55,13 +55,10 @@ class MyBot : Bot {
             }
         }
     }
-<<<<<<< HEAD
+
+
     //TODO: Consider changing the minimum value for highstakes strat
-=======
-    //TODO: Sometimes finish games without running out of dynamite - need to beat ReactiveBot on page 86
-    //TODO: Consider changing the minimum value for highstakes strat
-    //TODO: Fix getting stuck in DDWDDWDDW loop as puts it hugely up to random chance
->>>>>>> First
+
 
     fun detectBeatPreviousMoveStrat(){
 
